@@ -102,8 +102,7 @@ git config gitaimsg.enabled false
 
 - Git
 - Python 3.11+ uses stdlib `tomllib` (For Python 3.8–3.10: `pip install tomli`)
-- Network access for remote LLMs (OpenAI, Gemini)
-- Running Ollama server for local use
+- Network access for remote LLMs (Ollama - local, OpenAI, Gemini)
 
 ## ❌ Uninstall
 
