@@ -69,9 +69,16 @@ def load_config():
 	}
 
 # ---------- Git helpers ----------
-def sh(cmd: str) -> str:
+def sh(cmd: str, default: str = "") -> str:
 	# Use git directly; keep output text
-	return subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL).strip()
+	try:
+		return subprocess.check_output(
+			cmd, shell=True, text=True, stderr=subprocess.DEVNULL
+		).strip()
+	except subprocess.CalledProcessError:
+		return default
+	except Exception:
+		return default
 
 # Sanitization + validation
 ERROR_PREFIXES = (
@@ -103,8 +110,19 @@ def sanitize_blob(text: str, byte_budget: int) -> str:
 	# Wrap in an opaque block so models don't parse it
 	return f"<DIFF>\n<![CDATA[\n{text}\n]]>\n</DIFF>"
 
+def get_branch() -> str:
+	for cmd in (
+		"git rev-parse --abbrev-ref HEAD",
+		"git symbolic-ref --short HEAD",
+		"git branch --show-current",
+	):
+		b = sh(cmd, "")
+		if b:
+			return b
+	return "HEAD"
+
 def get_git_context(max_diff_bytes: int):
-	branch = sh("git rev-parse --abbrev-ref HEAD")
+	branch = get_branch()
 	files = sh("git diff --staged --name-only")
 	numstat = sh("git diff --staged --numstat")
 	raw_diff = sh("git diff --staged -U0 --no-color")
@@ -138,7 +156,7 @@ def _post_json(url, payload, timeout, headers=None):
 	hdrs = {"Content-Type":"application/json", "Accept":"application/json"}
 	if headers: hdrs.update(headers)
 	body = json.dumps(payload).encode("utf-8")
-	req = urllib.request.Request(url, data=body, headers=hdrs)
+	req = urllib.request.Request(url, data=body, headers=hdrs, method="POST")
 	try:
 		with urllib.request.urlopen(req, timeout=timeout) as r:
 			raw = r.read()
@@ -235,15 +253,21 @@ class Gemini(Provider):
 		self.base = (base_url or "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
 		self.model, self.timeout_s, self.temperature, self.top_p = model, timeout_s, temperature, top_p
 	def generate(self, prompt):
-		if not self.key: return ""
-		url = f"{self.base}/models/{self.model}:generateContent?key={self.key}"
+		if not self.key:
+			log("gemini: missing GEMINI_API_KEY")
+			return ""
+		url = f"{self.base}/models/{self.model}:generateContent"
 		payload = {
 			"generationConfig": {"temperature": self.temperature, "topP": self.top_p, "maxOutputTokens": 300},
 			"contents": [{"role":"user","parts":[{"text": prompt["system"] + "\n\n" + prompt["user"]}]}]
 		}
-		obj, raw = _post_json(url, payload, self.timeout_s)
+		body = json.dumps(payload).encode("utf-8")
+		obj, raw = _post_json(url, payload, self.timeout_s, headers={"X-Goog-Api-Key": self.key})
 		if obj is None:
 			log(f"gemini bad JSON from {url}: {raw[:200]}")
+			return ""
+		if "error" in obj:
+			log(f"gemini API error: {obj['error']}")
 			return ""
 		c = obj.get("candidates", [])
 		parts = c[0].get("content", {}).get("parts", []) if c else []
@@ -255,11 +279,11 @@ def build_provider(cfg):
 	model = cfg["model"]; t = cfg["timeout_s"]; temp = cfg["temperature"]; top_p = cfg["top_p"]
 	if p == "openai":
 		base = ps.get("base_url", "https://api.openai.com/v1")
-		key = os.getenv(ps.get("api_key_env","OPENAI_API_KEY"))
+		key = os.getenv(ps.get("api_key", "OPENAI_API_KEY")) or ps.get("api_key") or ps.get("key")
 		return OpenAI(base, key, model, t, temp, top_p)
 	if p == "gemini":
 		base = ps.get("base_url")
-		key = os.getenv(ps.get("api_key_env","GEMINI_API_KEY"))
+		key = os.getenv(ps.get("api_key", "GEMINI_API_KEY")) or ps.get("api_key", "GEMINI_API_KEY")
 		return Gemini(base, key, model, t, temp, top_p)
 	base = ps.get("base_url", os.getenv("OLLAMA_URL","http://127.0.0.1:11434"))
 	return Ollama(base, model, t, temp, top_p)
