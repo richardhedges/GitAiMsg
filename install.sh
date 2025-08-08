@@ -28,5 +28,5 @@ echo "Installed. Edit .gitaimsg.toml to choose provider/model."
 
 if [ "$SRC_DIR" != "$REPO_ROOT" ]; then
 	echo "Cleaning up installer source: $SRC_DIR"
-	rm -rf "SRC_DIR"
+	rm -rf "$SRC_DIR"
 fi
