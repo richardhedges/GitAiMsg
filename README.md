@@ -20,7 +20,8 @@ git clone https://github.com/richardhedges/gitaimsg.git
 Inside the Git repo where you want AI commit messages:
 
 ```bash
-../gitaimsg/install.sh
+chmod +x gitaimsg/install.sh
+./gitaimsg/install.sh
 ```
 
 On Windows PowerShell:
