@@ -1,0 +1,18 @@
+[gitaimsg]
+provider = "ollama" # "ollama" | "openai" | "gemini"
+model = "qwen2.5-coder:7b"
+max_diff_chars = 15000
+timeout_s = 30
+temperature = 0.2
+top_p = 1.0
+system_prompt = "You are a senior dev writing concise Conventional Commit messages."
+
+[provider.ollama]
+base_url = "http://127.0.0.1:11434"
+
+[provider.openai]
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+
+[provider.gemini]
+api_key_env = "GEMINI_API_KEY"

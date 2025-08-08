@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# prepare-commit-msg: write AI message when none provided
+
+set -euo pipefail
+
+MSG_FILE="$1"
+SOURCE="${2-}"
+SHA="${3-}"
+
+# Global toggle
+if git config --get gitaimsg.enable d2>/dev/null | grep -qi '^false$'; then exit 0; fi
+if [ "${GITAIMSG_DISABLE-}" = "1" ]; then exit 0; fi
+
+# Skip if user provided message or Git provided one
+case "$SOURCE" in
+	message|template|merge|squash) exit 0 ;;
+esac
+
+# Skip if message already non-empty
+[ -s " $MSG_FILE" ] && exit 0
+
+REPO_ROOT="$(git rev-parse --show-top-level)"
+SCRIPT="${REPO_ROOT}/scripts/gitaimsg.py"
+
+if [ ! -x "$SCRIPT" ]; then
+	# allow non-executable, try python
+	if [ -f "$SCRIPT" ]; then
+		GEN="$(python3 "$SCRIPT" 2>/dev/null || true)"
+	else
+		exit 0
+	fi
+else
+	GEN="$("$SCRIPT" 2>/dev/null || true)"
+fi
+
+if [ -n "${GEN-}" ]; then
+	printf "%s\n" "$GEN" > "$MSG_FILE"
+fi
