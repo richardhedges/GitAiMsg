@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# prepare-commit-msg: write AI message when none provided
-
-set -euo pipefail
 
 MSG_FILE="$1"
 SOURCE="${2-}"
 SHA="${3-}"
 
 # Global toggle
-if git config --get gitaimsg.enable d2>/dev/null | grep -qi '^false$'; then exit 0; fi
+if git config --get gitaimsg.enabled 2>/dev/null | grep -qi '^false$'; then exit 0; fi
 if [ "${GITAIMSG_DISABLE-}" = "1" ]; then exit 0; fi
 
 # Skip if user provided message or Git provided one
@@ -16,23 +13,33 @@ case "$SOURCE" in
 	message|template|merge|squash) exit 0 ;;
 esac
 
-# Skip if message already non-empty
-[ -s " $MSG_FILE" ] && exit 0
+# Skip if there are no staged changes
+if git diff --staged --quiet; then exit 0; fi
 
-REPO_ROOT="$(git rev-parse --show-top-level)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT="${REPO_ROOT}/scripts/gitaimsg.py"
 
-if [ ! -x "$SCRIPT" ]; then
-	# allow non-executable, try python
-	if [ -f "$SCRIPT" ]; then
-		GEN="$(python3 "$SCRIPT" 2>/dev/null || true)"
-	else
-		exit 0
-	fi
-else
-	GEN="$("$SCRIPT" 2>/dev/null || true)"
-fi
+# Find python
+PY_BIN=""
+for c in python3 python py python.exe; do
+	if command -v "$c" >/dev/null 2>&1; then PY_BIN="$c"; break; fi
+done
 
-if [ -n "${GEN-}" ]; then
+# Generate message (with fallback for debug)
+GEN=""
+if [ -n "$PY_BIN" ] && [ -f "$SCRIPT" ]; then
+	GEN="$("$PY_BIN" "$SCRIPT" 2>/dev/null || true)"
+fi
+[ -z "$GEN" ] && GEN="test: hook filled this"
+
+# Prepend GEN above any existing comments/template
+if [ -f "$MSG_FILE" ]; then
+	TMP="$(mktemp)"
+	{
+		printf "%s\n\n" "$GEN"
+		cat "$MSG_FILE"
+	} > "$TMP"
+	mv "$TMP" "$MSG_FILE"
+else
 	printf "%s\n" "$GEN" > "$MSG_FILE"
 fi
