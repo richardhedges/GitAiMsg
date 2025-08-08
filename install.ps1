@@ -19,3 +19,9 @@ if (-not (Test-Path "$repoRoot/.gitaimsg.toml") -and (Test-Path "$scriptDir/.git
 
 & git config gitaimsg.enabled true | Out-Null
 Write-Host "Installed. Edit .gitaimsg.toml to choose provider/model."
+
+# Cleanup source directory if it's not inside the repo
+if ($scriptDir -ne $repoRoot) {
+	Write-Host "Cleaning up installer source: $scriptDir"
+	Remove-Item -Recurse -Force $scriptDir
+}
