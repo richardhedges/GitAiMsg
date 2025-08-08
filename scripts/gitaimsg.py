@@ -178,7 +178,7 @@ def build_provider(cfg):
 def main():
 	try:
 		files = sh("git diff --staged --name-only")
-		if not files.strip()
+		if not files.strip():
 			return
 		cfg = load_config()
 		branch, _, diff = get_git_context(cfg["max_diff"])
